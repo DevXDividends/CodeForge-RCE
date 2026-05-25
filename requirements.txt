@@ -1,3 +1,4 @@
 streamlit
 ipykernel
 jupyter
+streamlit-ace
