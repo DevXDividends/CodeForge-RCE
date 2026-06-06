@@ -21,12 +21,17 @@ run = st.button("Run code",type="primary")
 if run:
     with open("workspace/code.cpp","w")as file:
         file.write(code)
-    st.spinner("Running")
     with st.spinner("Compiling and Running..."):
         result = execute_code()
-        logs = result["logs"]
-        statusCode = result["status_code"]
-        if statusCode == 0:
-            st.write(logs)           
+        if result["status"] == "SUCCESS":
+            print(result["status_code"])
+            st.success(result["logs"])
+        elif result["status"] == "TLE":
+            print(result["status_code"])
+            st.error(result["logs"])
+        elif result["status"] == "MLE":
+            print(result["status_code"])
+            st.error(result["logs"])
         else:
-            st.error(logs)
+            print(result["status_code"])
+            st.error(result["logs"])
