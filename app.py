@@ -1,5 +1,6 @@
 import streamlit as st
 import subprocess
+from docker_workflow import execute_code
 import streamlit_ace as sta
 
 st.set_page_config(
@@ -18,23 +19,14 @@ code = sta.st_ace(
 
 run = st.button("Run code",type="primary")
 if run:
-    with open("code.cpp","w")as file:
+    with open("workspace/code.cpp","w")as file:
         file.write(code)
     st.spinner("Running")
     with st.spinner("Compiling and Running..."):
-        result = subprocess.run(
-            ["g++","code.cpp","-o","code"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode !=0:
-            st.error(f"""Compilation ERROR!!  
-                 {result.stderr}
-                 """)       
+        result = execute_code()
+        logs = result["logs"]
+        statusCode = result["status_code"]
+        if statusCode == 0:
+            st.write(logs)           
         else:
-            output = subprocess.run(
-                ["code"],
-                capture_output=True,
-                text=True
-            )
-            st.success(output.stdout)
+            st.error(logs)

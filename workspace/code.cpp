@@ -4,13 +4,18 @@
 
 #include <unordered_map>
 
+
+
 using namespace std;
+
+
 
 class Solution
 
 {
 
 public:
+
     vector<int> twoSum(vector<int> &nums, int target)
 
     {
@@ -19,29 +24,45 @@ public:
 
         int comp = 0;
 
+
+
         for (int i = 0; i < nums.size(); i++)
 
         {
 
             comp = target - nums[i];
 
+
+
             if (mpp.find(comp) != mpp.end())
 
             {
 
                 return {i, mpp[comp]};
+
             }
 
+
+
             mpp[nums[i]] = i;
+
         }
 
+
+
         return {};
+
     }
+
 };
+
+
 
 int main()
 
 {
+
+
 
     vector<int> nums = {
 
@@ -67,9 +88,15 @@ int main()
 
     int target = 209;
 
+
+
     Solution obj;
 
+
+
     vector<int> result = obj.twoSum(nums, target);
+
+
 
     if (!result.empty())
 
@@ -78,6 +105,7 @@ int main()
         cout << "Indices are: ";
 
         cout << result[0] << " " << result[1] << endl;
+
     }
 
     else
@@ -85,7 +113,9 @@ int main()
     {
 
         cout << "No solution found" << endl;
+
     }
 
     return 0;
-}
+
+}   
