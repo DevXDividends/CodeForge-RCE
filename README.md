@@ -8,6 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Engine-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](#license)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-yellow)](#roadmap)
 [![Language Support](https://img.shields.io/badge/Language-C%2B%2B-orange)](#supported-languages)
 [![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen)](#contributing)
@@ -42,6 +43,7 @@
 - [Limitations](#-current-limitations)
 - [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
@@ -439,6 +441,7 @@ codeforge-rce/
 ├── examples/
 │   └── sample_submission.py
 ├── requirements.txt
+├── LICENSE
 └── README.md
 ```
 
@@ -515,7 +518,13 @@ Contributions, issues, and feature requests are welcome! Feel free to check the 
 
 ---
 
+## 📄 License
 
+This project is licensed under the **MIT License** — see the `LICENSE` file for details.
+
+---
+
+<div align="center">
 
 **CodeForge RCE** — Built for developers who need to run untrusted code without trusting it.
 
