@@ -1,11 +1,8 @@
 import streamlit as st
-import subprocess
-from docker_workflow import execute_code
 import streamlit_ace as sta
+from docker_workflow import CodeForgeRCE
 
-st.set_page_config(
-    page_title="CODEFORGE - RCE"
-)
+st.set_page_config(page_title="CODEFORGE - RCE")
 
 st.header("CODEFORGE - RCE")
 st.subheader("Write Your Code Here")
@@ -17,21 +14,36 @@ code = sta.st_ace(
     auto_update=True
 )
 
-run = st.button("Run code",type="primary")
+user_input = st.text_area(label="Input")
+
+run = st.button("Run code", type="primary")
+
 if run:
-    with open("workspace/code.cpp","w")as file:
-        file.write(code)
     with st.spinner("Compiling and Running..."):
-        result = execute_code()
-        if result["status"] == "SUCCESS":
-            print(result["status_code"])
-            st.success(result["logs"])
-        elif result["status"] == "TLE":
-            print(result["status_code"])
-            st.error(result["logs"])
-        elif result["status"] == "MLE":
-            print(result["status_code"])
-            st.error(result["logs"])
+        rce = CodeForgeRCE(code=code, input=user_input)
+        
+        status = rce.get("status")
+        
+        if status == "SUCCESS":
+            st.success("Execution Successful")
+            st.code(rce.get("stdout", ""), language="text")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Execution Time", f"{rce.get('execution_time_ms', 0)} ms")
+            with col2:
+                st.metric("Memory Used", f"{rce.get('memory', 'N/A')} MB")
+
+        elif status == "COMPILATION ERROR":
+            st.error("Compilation Error")
+            st.code(rce.get("logs", "No logs available"), language="bash")
+
+        elif status in ["TLE", "MLE"]:
+            st.error(f"Resource Limit Exceeded: {status}")
+            st.code(rce.get("stdout", ""), language="text")
+
         else:
-            print(result["status_code"])
-            st.error(result["logs"])
+            # For Runtime Errors (SIGSEGV, Abort, etc.) or Docker Errors
+            st.error(f"Error Status: {status}")
+            err_output = rce.get("stdout") or rce.get("logs") or "An unknown error occurred."
+            st.code(err_output, language="text")
