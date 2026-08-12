@@ -2,8 +2,9 @@ import os
 import docker
 import queue
 import threading
-import shutil
 import time
+
+from workspace_manager import WorkspaceManager
 
 from models import (
     CompileResult,
@@ -12,21 +13,26 @@ from models import (
 )
 
 
+# ============================================================
 # CONFIGURATION
+# ============================================================
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WORKSPACE_PATH = os.path.join(BASE_DIR, "workspace")
+
+WORKSPACE_PATH = os.path.join(
+    BASE_DIR,
+    "workspace",
+)
+
+workspace = WorkspaceManager(
+    WORKSPACE_PATH
+)
 
 IMAGE_NAME = "codeforge-rce"
 
 DEFAULT_TIMEOUT = 2.0
 MEMORY_LIMIT = "128m"
 PIDS_LIMIT = 64
-
-
-PRESERVE_FILES = {
-    ".gitkeep",
-    "code.cpp",
-}
 
 
 RUNTIME_STATUS = {
@@ -39,13 +45,21 @@ RUNTIME_STATUS = {
 }
 
 
+# ============================================================
 # DOCKER CLIENT
+# ============================================================
+
 client = docker.from_env()
 
 
+# ============================================================
 # CONTAINER
+# ============================================================
+
 def create_container(host_path: str):
+
     try:
+
         container = client.containers.create(
             image=IMAGE_NAME,
             command="sleep infinity",
@@ -69,10 +83,14 @@ def create_container(host_path: str):
         return None
 
 
+# ============================================================
 # COMPILER
+# ============================================================
+
 def compile_code(container) -> CompileResult:
 
     if container is None:
+
         return CompileResult(
             status="ERROR",
             logs="Container not found!",
@@ -80,6 +98,7 @@ def compile_code(container) -> CompileResult:
         )
 
     try:
+
         response = container.exec_run(
             cmd="g++ /app/code.cpp -o /app/out"
         )
@@ -100,6 +119,7 @@ def compile_code(container) -> CompileResult:
         )
 
     except docker.errors.DockerException as e:
+
         return CompileResult(
             status="DOCKER_ERROR",
             logs=str(e),
@@ -107,11 +127,17 @@ def compile_code(container) -> CompileResult:
         )
 
 
+# ============================================================
 # EXECUTION WORKER
+# ============================================================
 
-def worker(exec_id: str, result_queue: queue.Queue):
+def worker(
+    exec_id: str,
+    result_queue: queue.Queue,
+):
 
     try:
+
         output = client.api.exec_start(
             exec_id=exec_id
         )
@@ -126,12 +152,15 @@ def worker(exec_id: str, result_queue: queue.Queue):
         })
 
     except Exception as e:
+
         result_queue.put({
             "error": str(e),
         })
 
 
+# ============================================================
 # CODE EXECUTION
+# ============================================================
 
 def run_code(
     container,
@@ -140,6 +169,7 @@ def run_code(
 ) -> ExecutionResult:
 
     if container is None:
+
         return ExecutionResult(
             status="ERROR",
             stdout="Container not found",
@@ -148,23 +178,19 @@ def run_code(
 
     result_queue = queue.Queue()
 
-    input_file = os.path.join(
-        WORKSPACE_PATH,
-        "input.txt",
-    )
-
     try:
 
+        # ----------------------------------------------------
         # Prepare stdin
+        # ----------------------------------------------------
 
-        with open(
-            input_file,
-            "w",
-            encoding="utf-8",
-        ) as f:
-            f.write(input_data or "")
+        workspace.write_input(
+            input_data
+        )
 
+        # ----------------------------------------------------
         # Create execution process
+        # ----------------------------------------------------
 
         command = [
             "sh",
@@ -181,7 +207,9 @@ def run_code(
 
         exec_id = exec_obj["Id"]
 
+        # ----------------------------------------------------
         # Start worker
+        # ----------------------------------------------------
 
         thread = threading.Thread(
             target=worker,
@@ -199,7 +227,9 @@ def run_code(
             3,
         )
 
+        # ----------------------------------------------------
         # TIME LIMIT EXCEEDED
+        # ----------------------------------------------------
 
         if thread.is_alive():
 
@@ -217,7 +247,9 @@ def run_code(
                 execution_time_ms=execution_time,
             )
 
+        # ----------------------------------------------------
         # Worker produced no result
+        # ----------------------------------------------------
 
         if result_queue.empty():
 
@@ -230,7 +262,9 @@ def run_code(
 
         result = result_queue.get()
 
+        # ----------------------------------------------------
         # Worker / Docker error
+        # ----------------------------------------------------
 
         if "error" in result:
 
@@ -244,13 +278,17 @@ def run_code(
         output = result["output"]
         info = result["info"]
 
+        # ----------------------------------------------------
         # Reload container state
+        # ----------------------------------------------------
 
         container.reload()
 
         state = container.attrs["State"]
 
+        # ----------------------------------------------------
         # MEMORY LIMIT EXCEEDED
+        # ----------------------------------------------------
 
         if state.get("OOMKilled", False):
 
@@ -261,7 +299,9 @@ def run_code(
                 execution_time_ms=execution_time,
             )
 
+        # ----------------------------------------------------
         # MEMORY USAGE
+        # ----------------------------------------------------
 
         memory_mb = None
 
@@ -287,7 +327,9 @@ def run_code(
         except Exception:
             pass
 
+        # ----------------------------------------------------
         # EXIT CODE
+        # ----------------------------------------------------
 
         exit_code = info["ExitCode"]
 
@@ -299,7 +341,9 @@ def run_code(
             ),
         )
 
-        # STDOUT + STDERR
+        # ----------------------------------------------------
+        # STDOUT
+        # ----------------------------------------------------
 
         stdout = output.decode(
             "utf-8",
@@ -307,6 +351,7 @@ def run_code(
         )
 
         if not stdout.strip() and exit_code != 0:
+
             stdout = default_message
 
         return ExecutionResult(
@@ -327,22 +372,15 @@ def run_code(
 
     finally:
 
-        cleanup(
-            container=container,
-            workspace_path=WORKSPACE_PATH,
-        )
+        # ----------------------------------------------------
+        # Workspace cleanup
+        # ----------------------------------------------------
 
+        workspace.cleanup()
 
-# CLEANUP
-
-def cleanup(
-    container=None,
-    workspace_path=None,
-):
-
-    # Remove container
-
-    if container is not None:
+        # ----------------------------------------------------
+        # Container cleanup
+        # ----------------------------------------------------
 
         try:
             container.remove(
@@ -351,50 +389,21 @@ def cleanup(
         except docker.errors.DockerException:
             pass
 
-    # Clean workspace
-    if (
-        workspace_path
-        and os.path.isdir(workspace_path)
-    ):
 
-        for item in os.listdir(workspace_path):
-
-            if item in PRESERVE_FILES:
-                continue
-
-            path = os.path.join(
-                workspace_path,
-                item,
-            )
-
-            try:
-
-                if (
-                    os.path.isfile(path)
-                    or os.path.islink(path)
-                ):
-                    os.remove(path)
-
-                elif os.path.isdir(path):
-                    shutil.rmtree(path)
-
-            except OSError:
-                pass
-
-
+# ============================================================
 # CODEFORGE RCE
+# ============================================================
 
 def CodeForgeRCE(
     request: ExecutionRequest,
 ):
-
-    # Validate request
 
     if (
         request is None
         or not request.code
         or not request.code.strip()
     ):
+
         return {
             "status": "ERROR",
             "logs": "Code not provided",
@@ -405,24 +414,20 @@ def CodeForgeRCE(
 
     try:
 
+        # ----------------------------------------------------
         # Write source code
+        # ----------------------------------------------------
 
-        source_file = os.path.join(
-            WORKSPACE_PATH,
-            "code.cpp",
+        workspace.write_code(
+            request.code
         )
 
-        with open(
-            source_file,
-            "w",
-            encoding="utf-8",
-        ) as file:
-            file.write(request.code)
-
+        # ----------------------------------------------------
         # Create container
+        # ----------------------------------------------------
 
         container = create_container(
-            host_path=WORKSPACE_PATH,
+            host_path=WORKSPACE_PATH
         )
 
         if container is None:
@@ -433,10 +438,12 @@ def CodeForgeRCE(
                 "status_code": -1,
             }
 
+        # ----------------------------------------------------
         # Compile
+        # ----------------------------------------------------
 
         compile_result = compile_code(
-            container=container,
+            container
         )
 
         if compile_result.status_code != 0:
@@ -447,7 +454,9 @@ def CodeForgeRCE(
                 "status_code": compile_result.status_code,
             }
 
+        # ----------------------------------------------------
         # Execute
+        # ----------------------------------------------------
 
         execution_result = run_code(
             container=container,
@@ -455,8 +464,7 @@ def CodeForgeRCE(
             input_data=request.stdin,
         )
 
-        # run_code() owns cleanup after execution.
-
+        # run_code() owns cleanup now.
         container = None
 
         return {
@@ -469,15 +477,16 @@ def CodeForgeRCE(
 
     finally:
 
-        # ----------------------------------------------------
-        # Important:
-        # If compilation fails or container creation/execution
-        # throws before run_code() gets ownership, clean it.
-        # ----------------------------------------------------
+        # If compilation failed, run_code() was never called,
+        # so we still need to clean the container/workspace here.
 
         if container is not None:
 
-            cleanup(
-                container=container,
-                workspace_path=WORKSPACE_PATH,
-            )
+            workspace.cleanup()
+
+            try:
+                container.remove(
+                    force=True
+                )
+            except docker.errors.DockerException:
+                pass
