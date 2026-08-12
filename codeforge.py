@@ -6,6 +6,10 @@ from workspace_manager import WorkspaceManager
 from container_manager import ContainerManager
 from compiler import Compiler
 from executor import Executor
+from language import (
+    LanguageConfig,
+    LanguageRegistry,
+)
 
 
 class CodeForgeRCE:
@@ -19,9 +23,9 @@ class CodeForgeRCE:
         pids_limit: int = 64,
     ):
 
-        # ----------------------------------------------------
-        # Resolve workspace
-        # ----------------------------------------------------
+        # ====================================================
+        # WORKSPACE
+        # ====================================================
 
         if workspace_path is None:
 
@@ -34,20 +38,24 @@ class CodeForgeRCE:
                 "workspace",
             )
 
-        self.workspace_path = workspace_path
+        self.workspace_path = (
+            workspace_path
+        )
 
-        # ----------------------------------------------------
-        # Create managers
-        # ----------------------------------------------------
+        # ====================================================
+        # MANAGERS
+        # ====================================================
 
         self.workspace = WorkspaceManager(
             self.workspace_path
         )
 
-        self.container_manager = ContainerManager(
-            image_name=image_name,
-            memory_limit=memory_limit,
-            pids_limit=pids_limit,
+        self.container_manager = (
+            ContainerManager(
+                image_name=image_name,
+                memory_limit=memory_limit,
+                pids_limit=pids_limit,
+            )
         )
 
         self.compiler = Compiler(
@@ -55,9 +63,38 @@ class CodeForgeRCE:
         )
 
         self.executor = Executor(
-            container_manager=self.container_manager,
+            container_manager=(
+                self.container_manager
+            ),
             workspace_manager=self.workspace,
-            default_timeout=default_timeout,
+            default_timeout=(
+                default_timeout
+            ),
+        )
+
+        # ====================================================
+        # LANGUAGE REGISTRY
+        # ====================================================
+
+        self.language_registry = (
+            LanguageRegistry()
+        )
+
+        # -------------------------------
+        # C++
+        # -------------------------------
+
+        self.language_registry.register(
+            LanguageConfig(
+                name="cpp",
+                source_file="code.cpp",
+                compile_command=(
+                    "g++ "
+                    "/app/code.cpp "
+                    "-o /app/out"
+                ),
+                run_command="/app/out",
+            )
         )
 
     def execute(
@@ -65,9 +102,9 @@ class CodeForgeRCE:
         request: ExecutionRequest,
     ):
 
-        # ----------------------------------------------------
-        # Validate request
-        # ----------------------------------------------------
+        # ====================================================
+        # VALIDATE REQUEST
+        # ====================================================
 
         if (
             request is None
@@ -84,75 +121,126 @@ class CodeForgeRCE:
 
         try:
 
-            # ------------------------------------------------
-            # Write source code
-            # ------------------------------------------------
+            # =================================================
+            # GET LANGUAGE CONFIG
+            # =================================================
+
+            try:
+
+                language_config = (
+                    self.language_registry.get(
+                        request.language
+                    )
+                )
+
+            except ValueError as e:
+
+                return {
+                    "status": "ERROR",
+                    "logs": str(e),
+                    "status_code": -1,
+                }
+
+            # =================================================
+            # WRITE SOURCE
+            # =================================================
 
             self.workspace.write_code(
-                request.code
+                request.code,
+                language_config.source_file,
             )
 
-            # ------------------------------------------------
-            # Create container
-            # ------------------------------------------------
+            # =================================================
+            # CREATE CONTAINER
+            # =================================================
 
-            container = self.container_manager.create(
-                self.workspace_path
+            container = (
+                self.container_manager.create(
+                    self.workspace_path
+                )
             )
 
             if container is None:
 
                 return {
                     "status": "DOCKER_ERROR",
-                    "logs": "Failed to create Docker container",
+                    "logs": (
+                        "Failed to create "
+                        "Docker container"
+                    ),
                     "status_code": -1,
                 }
 
-            # ------------------------------------------------
-            # Compile
-            # ------------------------------------------------
+            # =================================================
+            # COMPILE
+            # =================================================
 
-            compile_result = self.compiler.compile(
-                container
+            compile_result = (
+                self.compiler.compile(
+                    container,
+                    language_config,
+                )
             )
 
             if compile_result.status_code != 0:
 
                 return {
-                    "status": compile_result.status,
-                    "logs": compile_result.logs,
-                    "status_code": compile_result.status_code,
+                    "status": (
+                        compile_result.status
+                    ),
+                    "logs": (
+                        compile_result.logs
+                    ),
+                    "status_code": (
+                        compile_result.status_code
+                    ),
                 }
 
-            # ------------------------------------------------
-            # Execute
-            # ------------------------------------------------
+            # =================================================
+            # EXECUTE
+            # =================================================
 
-            execution_result = self.executor.run(
-                container=container,
-                timeout=request.timeout,
-                input_data=request.stdin,
+            execution_result = (
+                self.executor.run(
+                    container=container,
+                    language_config=(
+                        language_config
+                    ),
+                    timeout=request.timeout,
+                    input_data=request.stdin,
+                )
             )
 
-            # Executor has already cleaned everything.
+            # Executor already cleaned it.
             container = None
 
             return {
-                "status": execution_result.status,
-                "stdout": execution_result.stdout,
-                "status_code": execution_result.status_code,
-                "execution_time_ms": execution_result.execution_time_ms,
-                "memory": execution_result.memory_mb,
+                "status": (
+                    execution_result.status
+                ),
+                "stdout": (
+                    execution_result.stdout
+                ),
+                "status_code": (
+                    execution_result.status_code
+                ),
+                "execution_time_ms": (
+                    execution_result
+                    .execution_time_ms
+                ),
+                "memory": (
+                    execution_result.memory_mb
+                ),
             }
 
         finally:
 
-            # ------------------------------------------------
-            # Fallback cleanup
-            #
-            # Needed when something fails before Executor.run()
-            # gets ownership of the container.
-            # ------------------------------------------------
+            # =================================================
+            # FALLBACK CLEANUP
+            # =================================================
+
+            # Needed when failure occurs before
+            # Executor.run() takes ownership.
 
             if container is not None:
 

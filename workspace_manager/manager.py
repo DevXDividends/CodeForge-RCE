@@ -6,44 +6,52 @@ class WorkspaceManager:
 
     PRESERVE_FILES = {
         ".gitkeep",
-        "code.cpp",
     }
 
     def __init__(self, workspace_path: str):
-        self.workspace_path = os.path.abspath(workspace_path)
+        self.workspace_path = os.path.abspath(
+            workspace_path
+        )
 
         os.makedirs(
             self.workspace_path,
             exist_ok=True
         )
 
-    def write_code(self, code: str) -> str:
+    def write_code(
+        self,
+        code: str,
+        filename: str,
+    ) -> str:
 
         code_path = os.path.join(
             self.workspace_path,
-            "code.cpp"
+            filename,
         )
 
         with open(
             code_path,
             "w",
-            encoding="utf-8"
+            encoding="utf-8",
         ) as file:
             file.write(code)
 
         return code_path
 
-    def write_input(self, input_data: str | None) -> str:
+    def write_input(
+        self,
+        input_data: str | None,
+    ) -> str:
 
         input_path = os.path.join(
             self.workspace_path,
-            "input.txt"
+            "input.txt",
         )
 
         with open(
             input_path,
             "w",
-            encoding="utf-8"
+            encoding="utf-8",
         ) as file:
             file.write(input_data or "")
 
@@ -51,17 +59,21 @@ class WorkspaceManager:
 
     def cleanup(self):
 
-        if not os.path.isdir(self.workspace_path):
+        if not os.path.isdir(
+            self.workspace_path
+        ):
             return
 
-        for item in os.listdir(self.workspace_path):
+        for item in os.listdir(
+            self.workspace_path
+        ):
 
             if item in self.PRESERVE_FILES:
                 continue
 
             path = os.path.join(
                 self.workspace_path,
-                item
+                item,
             )
 
             try:

@@ -5,6 +5,7 @@ import time
 import docker
 
 from models import ExecutionResult
+from language import LanguageConfig
 
 
 class Executor:
@@ -33,13 +34,25 @@ class Executor:
         exec_id: str,
         result_queue: queue.Queue,
     ):
+
         try:
-            output = self.container_manager.client.api.exec_start(
-                exec_id=exec_id
+
+            output = (
+                self.container_manager
+                .client
+                .api
+                .exec_start(
+                    exec_id=exec_id
+                )
             )
 
-            info = self.container_manager.client.api.exec_inspect(
-                exec_id=exec_id
+            info = (
+                self.container_manager
+                .client
+                .api
+                .exec_inspect(
+                    exec_id=exec_id
+                )
             )
 
             result_queue.put({
@@ -48,6 +61,7 @@ class Executor:
             })
 
         except Exception as e:
+
             result_queue.put({
                 "error": str(e),
             })
@@ -55,6 +69,7 @@ class Executor:
     def run(
         self,
         container,
+        language_config: LanguageConfig,
         timeout: float | None = None,
         input_data: str | None = None,
     ) -> ExecutionResult:
@@ -66,6 +81,7 @@ class Executor:
         )
 
         if container is None:
+
             return ExecutionResult(
                 status="ERROR",
                 stdout="Container not found",
@@ -75,6 +91,7 @@ class Executor:
         result_queue = queue.Queue()
 
         try:
+
             # ------------------------------------------
             # Prepare stdin
             # ------------------------------------------
@@ -83,10 +100,17 @@ class Executor:
                 input_data
             )
 
+            # ------------------------------------------
+            # Build run command
+            # ------------------------------------------
+
             command = [
                 "sh",
                 "-c",
-                "/app/out < /app/input.txt",
+                (
+                    f"{language_config.run_command}"
+                    " < /app/input.txt"
+                ),
             ]
 
             # ------------------------------------------
@@ -94,7 +118,10 @@ class Executor:
             # ------------------------------------------
 
             exec_obj = (
-                self.container_manager.client.api.exec_create(
+                self.container_manager
+                .client
+                .api
+                .exec_create(
                     container=container.id,
                     cmd=command,
                     stdout=True,
@@ -105,12 +132,15 @@ class Executor:
             exec_id = exec_obj["Id"]
 
             # ------------------------------------------
-            # Worker thread
+            # Worker
             # ------------------------------------------
 
             thread = threading.Thread(
                 target=self._worker,
-                args=(exec_id, result_queue),
+                args=(
+                    exec_id,
+                    result_queue,
+                ),
                 daemon=True,
             )
 
@@ -120,7 +150,10 @@ class Executor:
             thread.join(timeout)
 
             execution_time = round(
-                (time.perf_counter() - start) * 1000,
+                (
+                    time.perf_counter()
+                    - start
+                ) * 1000,
                 3,
             )
 
@@ -175,7 +208,7 @@ class Executor:
             info = result["info"]
 
             # ------------------------------------------
-            # Reload container
+            # Reload
             # ------------------------------------------
 
             self.container_manager.reload(
@@ -188,7 +221,10 @@ class Executor:
             # MLE
             # ------------------------------------------
 
-            if state.get("OOMKilled", False):
+            if state.get(
+                "OOMKilled",
+                False
+            ):
 
                 return ExecutionResult(
                     status="MLE",
@@ -205,22 +241,28 @@ class Executor:
 
             try:
 
-                stats = self.container_manager.stats(
-                    container
+                stats = (
+                    self.container_manager
+                    .stats(container)
                 )
 
                 if stats:
 
-                    memory = stats["memory_stats"].get(
-                        "max_usage",
-                        stats["memory_stats"].get(
-                            "usage",
-                            0,
-                        ),
+                    memory = (
+                        stats["memory_stats"]
+                        .get(
+                            "max_usage",
+                            stats["memory_stats"]
+                            .get(
+                                "usage",
+                                0,
+                            ),
+                        )
                     )
 
                     memory_mb = round(
-                        memory / (1024 * 1024),
+                        memory
+                        / (1024 * 1024),
                         2,
                     )
 
@@ -233,12 +275,14 @@ class Executor:
 
             exit_code = info["ExitCode"]
 
-            status, default_message = self.RUNTIME_STATUS.get(
-                exit_code,
-                (
-                    "RUNTIME_ERROR",
-                    "Runtime Error",
-                ),
+            status, default_message = (
+                self.RUNTIME_STATUS.get(
+                    exit_code,
+                    (
+                        "RUNTIME_ERROR",
+                        "Runtime Error",
+                    ),
+                )
             )
 
             # ------------------------------------------
@@ -250,7 +294,10 @@ class Executor:
                 errors="replace",
             )
 
-            if not stdout.strip() and exit_code != 0:
+            if (
+                not stdout.strip()
+                and exit_code != 0
+            ):
                 stdout = default_message
 
             return ExecutionResult(
@@ -270,6 +317,8 @@ class Executor:
             )
 
         finally:
+
+            # Executor owns execution cleanup
             self.workspace_manager.cleanup()
 
             self.container_manager.remove(

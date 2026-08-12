@@ -2,8 +2,7 @@ from codeforge import CodeForgeRCE
 from models import ExecutionRequest
 
 
-def run_test(name, code, stdin=None, timeout=2):
-
+def run_test(name, code, stdin=None, timeout=2, language="cpp"):
     print("\n" + "=" * 60)
     print(f"TEST: {name}")
     print("=" * 60)
@@ -12,7 +11,7 @@ def run_test(name, code, stdin=None, timeout=2):
 
     request = ExecutionRequest(
         code=code,
-        language="cpp",
+        language=language,
         stdin=stdin,
         timeout=timeout,
     )
@@ -22,8 +21,9 @@ def run_test(name, code, stdin=None, timeout=2):
     print("Status       :", result.get("status"))
     print("Status Code  :", result.get("status_code"))
     print("Output       :", repr(result.get("stdout")))
-    print("Time (ms)     :", result.get("execution_time_ms"))
-    print("Memory (MB)   :", result.get("memory"))
+    print("Logs         :", repr(result.get("logs")))
+    print("Time (ms)    :", result.get("execution_time_ms"))
+    print("Memory (MB)  :", result.get("memory"))
 
     return result
 
@@ -46,7 +46,7 @@ int main() {
 
 
 # ============================================================
-# 2. SUCCESS WITH MULTI-LINE OUTPUT
+# 2. MULTI-LINE OUTPUT
 # ============================================================
 
 run_test(
@@ -58,6 +58,7 @@ int main() {
     std::cout << "Hello\n";
     std::cout << "CodeForge\n";
     std::cout << "RCE\n";
+
     return 0;
 }
 '''
@@ -122,7 +123,7 @@ int main() {
 
 
 # ============================================================
-# 5. NO INPUT PROVIDED
+# 5. NO INPUT
 # ============================================================
 
 run_test(
@@ -139,7 +140,7 @@ int main() {
 
 
 # ============================================================
-# 6. INPUT PROVIDED BUT PROGRAM DOESN'T USE IT
+# 6. INPUT PROVIDED BUT NOT USED
 # ============================================================
 
 run_test(
@@ -330,7 +331,7 @@ int main() {
 
 
 # ============================================================
-# 15. TWO SUM REALISTIC TEST
+# 15. TWO SUM
 # ============================================================
 
 run_test(
@@ -408,4 +409,35 @@ int main() {
 2 7 11 15
 9
 """
+)
+
+
+# ============================================================
+# 16. UNSUPPORTED LANGUAGE
+# ============================================================
+
+run_test(
+    "Unsupported Language",
+    r'''
+print("Hello")
+''',
+    language="python"
+)
+
+
+# ============================================================
+# 17. LANGUAGE CASE INSENSITIVITY
+# ============================================================
+
+run_test(
+    "Language Case Insensitivity",
+    r'''
+#include <iostream>
+
+int main() {
+    std::cout << "CPP works";
+    return 0;
+}
+''',
+    language="CPP"
 )

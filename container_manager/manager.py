@@ -18,6 +18,7 @@ class ContainerManager:
     def create(self, host_path: str):
 
         try:
+
             container = self.client.containers.create(
                 image=self.image_name,
                 command="sleep infinity",
@@ -47,6 +48,7 @@ class ContainerManager:
 
         try:
             container.kill()
+
         except docker.errors.DockerException:
             pass
 
@@ -56,7 +58,10 @@ class ContainerManager:
             return
 
         try:
-            container.remove(force=True)
+            container.remove(
+                force=True
+            )
+
         except docker.errors.DockerException:
             pass
 
@@ -68,6 +73,7 @@ class ContainerManager:
         try:
             container.reload()
             return container
+
         except docker.errors.DockerException:
             return None
 
@@ -77,6 +83,9 @@ class ContainerManager:
             return None
 
         try:
-            return container.stats(stream=False)
+            return container.stats(
+                stream=False
+            )
+
         except docker.errors.DockerException:
             return None

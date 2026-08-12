@@ -1,6 +1,7 @@
 import docker
 
 from models import CompileResult
+from language import LanguageConfig
 
 
 class Compiler:
@@ -8,9 +9,14 @@ class Compiler:
     def __init__(self, docker_client):
         self.client = docker_client
 
-    def compile(self, container) -> CompileResult:
+    def compile(
+        self,
+        container,
+        language_config: LanguageConfig,
+    ) -> CompileResult:
 
         if container is None:
+
             return CompileResult(
                 status="ERROR",
                 logs="Container not found!",
@@ -19,8 +25,17 @@ class Compiler:
 
         try:
 
+            # Interpreted language
+            if language_config.compile_command is None:
+
+                return CompileResult(
+                    status="SUCCESS",
+                    logs="",
+                    status_code=0,
+                )
+
             response = container.exec_run(
-                cmd="g++ /app/code.cpp -o /app/out"
+                cmd=language_config.compile_command
             )
 
             logs = response.output.decode(
@@ -28,10 +43,11 @@ class Compiler:
                 errors="replace",
             )
 
-            if response.exit_code == 0:
-                status = "SUCCESS"
-            else:
-                status = "COMPILATION ERROR"
+            status = (
+                "SUCCESS"
+                if response.exit_code == 0
+                else "COMPILATION ERROR"
+            )
 
             return CompileResult(
                 status=status,

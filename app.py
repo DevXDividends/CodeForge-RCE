@@ -1,11 +1,22 @@
 import streamlit as st
 import streamlit_ace as sta
+
 from codeforge import CodeForgeRCE
 from models import ExecutionRequest
+
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 
 st.set_page_config(
     page_title="CODEFORGE - RCE"
 )
+
+
+# ============================================================
+# UI
+# ============================================================
 
 st.header("CODEFORGE - RCE")
 st.subheader("Write Your Code Here")
@@ -15,102 +26,182 @@ code = sta.st_ace(
     language="c_cpp",
     theme="monokai",
     height=500,
-    auto_update=True
+    auto_update=True,
 )
 
+
 user_input = st.text_area(
-    label="Input"
+    label="Input",
+    placeholder="Enter program input here..."
 )
+
 
 run = st.button(
     "Run code",
-    type="primary"
+    type="primary",
 )
 
 
+# ============================================================
+# EXECUTION
+# ============================================================
+
 if run:
-    with st.spinner("Compiling and Running..."):
+
+    # ----------------------------------------
+    # Validate code
+    # ----------------------------------------
+
+    if not code or not code.strip():
+
+        st.error("Please enter some code.")
+
+        st.stop()
+
+    # ----------------------------------------
+    # Execute
+    # ----------------------------------------
+
+    with st.spinner(
+        "Compiling and Running..."
+    ):
+
+        # Create execution request
         request = ExecutionRequest(
             code=code,
             language="cpp",
             stdin=user_input,
-            timeout=2
+            timeout=2,
         )
+
+        # Create RCE engine
         rce = CodeForgeRCE()
+
+        # Execute request
         result = rce.execute(
             request
         )
-        status = result.get(
-            "status"
+
+    # ----------------------------------------
+    # Extract status
+    # ----------------------------------------
+
+    status = result.get(
+        "status"
+    )
+
+
+    # ========================================================
+    # SUCCESS
+    # ========================================================
+
+    if status == "SUCCESS":
+
+        st.success(
+            "Execution Successful"
         )
-        if status == "SUCCESS":
 
-            st.success(
-                "Execution Successful"
+        # Program output
+        stdout = result.get(
+            "stdout",
+            ""
+        )
+
+        st.code(
+            stdout,
+            language="text"
+        )
+
+        # Metrics
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            execution_time = result.get(
+                "execution_time_ms",
+                0
             )
 
-            st.code(
-                result.get(
-                    "stdout",
-                    ""
-                ),
-                language="text"
+            st.metric(
+                "Execution Time",
+                f"{execution_time} ms"
             )
 
-            col1, col2 = st.columns(2)
+        with col2:
 
-            with col1:
-
-                st.metric(
-                    "Execution Time",
-                    f"{result.get('execution_time_ms', 0)} ms"
-                )
-
-            with col2:
-
-                st.metric(
-                    "Memory Used",
-                    f"{result.get('memory', 'N/A')} MB"
-                )
-
-        elif status == "COMPILATION ERROR":
-            st.error(
-                "Compilation Error"
+            memory = result.get(
+                "memory",
+                "N/A"
             )
 
-            st.code(
-                result.get(
-                    "logs",
-                    "No logs available"
-                ),
-                language="bash"
-            )
-        elif status in ["TLE", "MLE"]:
-
-            st.error(
-                f"Resource Limit Exceeded: {status}"
+            st.metric(
+                "Memory Used",
+                f"{memory} MB"
             )
 
-            st.code(
-                result.get(
-                    "stdout",
-                    ""
-                ),
-                language="text"
-            )
-        else:
 
-            st.error(
-                f"Error Status: {status}"
-            )
+    # ========================================================
+    # COMPILATION ERROR
+    # ========================================================
 
-            err_output = (
-                result.get("stdout")
-                or result.get("logs")
-                or "An unknown error occurred."
-            )
+    elif status == "COMPILATION ERROR":
 
-            st.code(
-                err_output,
-                language="text"
-            )
+        st.error(
+            "Compilation Error"
+        )
+
+        logs = result.get(
+            "logs",
+            "No logs available"
+        )
+
+        st.code(
+            logs,
+            language="bash"
+        )
+
+
+    # ========================================================
+    # TLE / MLE
+    # ========================================================
+
+    elif status in [
+        "TLE",
+        "MLE",
+    ]:
+
+        st.error(
+            f"Resource Limit Exceeded: {status}"
+        )
+
+        output = result.get(
+            "stdout",
+            ""
+        )
+
+        st.code(
+            output,
+            language="text"
+        )
+
+
+    # ========================================================
+    # OTHER ERRORS
+    # ========================================================
+
+    else:
+
+        st.error(
+            f"Error Status: {status}"
+        )
+
+        error_output = (
+            result.get("stdout")
+            or result.get("logs")
+            or "An unknown error occurred."
+        )
+
+        st.code(
+            error_output,
+            language="text"
+        )
