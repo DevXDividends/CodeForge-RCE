@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit_ace as sta
 from docker_workflow import CodeForgeRCE
+from models import ExecutionRequest
 
 st.set_page_config(page_title="CODEFORGE - RCE")
 
@@ -20,7 +21,14 @@ run = st.button("Run code", type="primary")
 
 if run:
     with st.spinner("Compiling and Running..."):
-        rce = CodeForgeRCE(code=code, input=user_input)
+        request = ExecutionRequest(
+            code=code,
+            language="cpp",
+            stdin=user_input,
+            timeout=2
+            )
+
+        rce = CodeForgeRCE(request)
         
         status = rce.get("status")
         
