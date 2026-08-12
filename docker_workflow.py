@@ -3,6 +3,7 @@ import docker
 import queue
 import threading
 import time
+from compiler import Compiler
 
 from models import (
     CompileResult,
@@ -56,48 +57,11 @@ container_manager = ContainerManager(
     pids_limit=PIDS_LIMIT,
 )
 
+compiler = Compiler(
+    container_manager.client
+)
 
-# ============================================================
-# COMPILER
-# ============================================================
 
-def compile_code(container) -> CompileResult:
-
-    if container is None:
-        return CompileResult(
-            status="ERROR",
-            logs="Container not found!",
-            status_code=-1,
-        )
-
-    try:
-
-        response = container.exec_run(
-            cmd="g++ /app/code.cpp -o /app/out"
-        )
-
-        logs = response.output.decode(
-            "utf-8",
-            errors="replace",
-        )
-
-        return CompileResult(
-            status=(
-                "SUCCESS"
-                if response.exit_code == 0
-                else "COMPILATION ERROR"
-            ),
-            logs=logs,
-            status_code=response.exit_code,
-        )
-
-    except docker.errors.DockerException as e:
-
-        return CompileResult(
-            status="DOCKER_ERROR",
-            logs=str(e),
-            status_code=-1,
-        )
 
 
 # ============================================================
@@ -410,7 +374,7 @@ def CodeForgeRCE(
         # Compile
         # ----------------------------------------------------
 
-        compile_result = compile_code(
+        compile_result = compiler.compile(
             container
         )
 
