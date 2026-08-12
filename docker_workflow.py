@@ -12,10 +12,7 @@ from models import (
 )
 
 
-# ============================================================
 # CONFIGURATION
-# ============================================================
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE_PATH = os.path.join(BASE_DIR, "workspace")
 
@@ -42,17 +39,11 @@ RUNTIME_STATUS = {
 }
 
 
-# ============================================================
 # DOCKER CLIENT
-# ============================================================
-
 client = docker.from_env()
 
 
-# ============================================================
 # CONTAINER
-# ============================================================
-
 def create_container(host_path: str):
     try:
         container = client.containers.create(
@@ -78,10 +69,7 @@ def create_container(host_path: str):
         return None
 
 
-# ============================================================
 # COMPILER
-# ============================================================
-
 def compile_code(container) -> CompileResult:
 
     if container is None:
@@ -119,9 +107,7 @@ def compile_code(container) -> CompileResult:
         )
 
 
-# ============================================================
 # EXECUTION WORKER
-# ============================================================
 
 def worker(exec_id: str, result_queue: queue.Queue):
 
@@ -145,9 +131,7 @@ def worker(exec_id: str, result_queue: queue.Queue):
         })
 
 
-# ============================================================
 # CODE EXECUTION
-# ============================================================
 
 def run_code(
     container,
@@ -171,9 +155,7 @@ def run_code(
 
     try:
 
-        # ----------------------------------------------------
         # Prepare stdin
-        # ----------------------------------------------------
 
         with open(
             input_file,
@@ -182,9 +164,7 @@ def run_code(
         ) as f:
             f.write(input_data or "")
 
-        # ----------------------------------------------------
         # Create execution process
-        # ----------------------------------------------------
 
         command = [
             "sh",
@@ -201,9 +181,7 @@ def run_code(
 
         exec_id = exec_obj["Id"]
 
-        # ----------------------------------------------------
         # Start worker
-        # ----------------------------------------------------
 
         thread = threading.Thread(
             target=worker,
@@ -221,9 +199,7 @@ def run_code(
             3,
         )
 
-        # ----------------------------------------------------
         # TIME LIMIT EXCEEDED
-        # ----------------------------------------------------
 
         if thread.is_alive():
 
@@ -241,9 +217,7 @@ def run_code(
                 execution_time_ms=execution_time,
             )
 
-        # ----------------------------------------------------
         # Worker produced no result
-        # ----------------------------------------------------
 
         if result_queue.empty():
 
@@ -256,9 +230,7 @@ def run_code(
 
         result = result_queue.get()
 
-        # ----------------------------------------------------
         # Worker / Docker error
-        # ----------------------------------------------------
 
         if "error" in result:
 
@@ -272,17 +244,13 @@ def run_code(
         output = result["output"]
         info = result["info"]
 
-        # ----------------------------------------------------
         # Reload container state
-        # ----------------------------------------------------
 
         container.reload()
 
         state = container.attrs["State"]
 
-        # ----------------------------------------------------
         # MEMORY LIMIT EXCEEDED
-        # ----------------------------------------------------
 
         if state.get("OOMKilled", False):
 
@@ -293,9 +261,7 @@ def run_code(
                 execution_time_ms=execution_time,
             )
 
-        # ----------------------------------------------------
         # MEMORY USAGE
-        # ----------------------------------------------------
 
         memory_mb = None
 
@@ -321,9 +287,7 @@ def run_code(
         except Exception:
             pass
 
-        # ----------------------------------------------------
         # EXIT CODE
-        # ----------------------------------------------------
 
         exit_code = info["ExitCode"]
 
@@ -335,9 +299,7 @@ def run_code(
             ),
         )
 
-        # ----------------------------------------------------
         # STDOUT + STDERR
-        # ----------------------------------------------------
 
         stdout = output.decode(
             "utf-8",
@@ -371,18 +333,14 @@ def run_code(
         )
 
 
-# ============================================================
 # CLEANUP
-# ============================================================
 
 def cleanup(
     container=None,
     workspace_path=None,
 ):
 
-    # --------------------------------------------------------
     # Remove container
-    # --------------------------------------------------------
 
     if container is not None:
 
@@ -393,10 +351,7 @@ def cleanup(
         except docker.errors.DockerException:
             pass
 
-    # --------------------------------------------------------
     # Clean workspace
-    # --------------------------------------------------------
-
     if (
         workspace_path
         and os.path.isdir(workspace_path)
@@ -427,17 +382,13 @@ def cleanup(
                 pass
 
 
-# ============================================================
 # CODEFORGE RCE
-# ============================================================
 
 def CodeForgeRCE(
     request: ExecutionRequest,
 ):
 
-    # --------------------------------------------------------
     # Validate request
-    # --------------------------------------------------------
 
     if (
         request is None
@@ -454,9 +405,7 @@ def CodeForgeRCE(
 
     try:
 
-        # ----------------------------------------------------
         # Write source code
-        # ----------------------------------------------------
 
         source_file = os.path.join(
             WORKSPACE_PATH,
@@ -470,9 +419,7 @@ def CodeForgeRCE(
         ) as file:
             file.write(request.code)
 
-        # ----------------------------------------------------
         # Create container
-        # ----------------------------------------------------
 
         container = create_container(
             host_path=WORKSPACE_PATH,
@@ -486,9 +433,7 @@ def CodeForgeRCE(
                 "status_code": -1,
             }
 
-        # ----------------------------------------------------
         # Compile
-        # ----------------------------------------------------
 
         compile_result = compile_code(
             container=container,
@@ -502,9 +447,7 @@ def CodeForgeRCE(
                 "status_code": compile_result.status_code,
             }
 
-        # ----------------------------------------------------
         # Execute
-        # ----------------------------------------------------
 
         execution_result = run_code(
             container=container,
