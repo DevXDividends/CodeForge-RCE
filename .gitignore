@@ -224,3 +224,22 @@ workspace/*
 
 # But keep the folder itself
 !workspace/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Build artifacts
+build/
+dist/
+
+# Virtual environment
+venv/
+.venv/
+
+# Test/runtime
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
