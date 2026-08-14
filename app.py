@@ -2,21 +2,12 @@ import streamlit as st
 import streamlit_ace as sta
 
 from codeforge import CodeForgeRCE
-from models import ExecutionRequest
+from codeforge.models import ExecutionRequest
 
-
-# ============================================================
-# PAGE CONFIG
-# ============================================================
 
 st.set_page_config(
     page_title="CODEFORGE - RCE"
 )
-
-
-# ============================================================
-# UI
-# ============================================================
 
 st.header("CODEFORGE - RCE")
 st.subheader("Write Your Code Here")
@@ -42,31 +33,14 @@ run = st.button(
 )
 
 
-# ============================================================
-# EXECUTION
-# ============================================================
-
 if run:
 
-    # ----------------------------------------
-    # Validate code
-    # ----------------------------------------
-
     if not code or not code.strip():
-
         st.error("Please enter some code.")
-
         st.stop()
 
-    # ----------------------------------------
-    # Execute
-    # ----------------------------------------
+    with st.spinner("Compiling and Running..."):
 
-    with st.spinner(
-        "Compiling and Running..."
-    ):
-
-        # Create execution request
         request = ExecutionRequest(
             code=code,
             language="cpp",
@@ -74,49 +48,24 @@ if run:
             timeout=2,
         )
 
-        # Create RCE engine
         rce = CodeForgeRCE()
 
-        # Execute request
-        result = rce.execute(
-            request
-        )
+        result = rce.execute(request)
 
-    # ----------------------------------------
-    # Extract status
-    # ----------------------------------------
-
-    status = result.get(
-        "status"
-    )
-
-
-    # ========================================================
-    # SUCCESS
-    # ========================================================
+    status = result.get("status")
 
     if status == "SUCCESS":
 
-        st.success(
-            "Execution Successful"
-        )
-
-        # Program output
-        stdout = result.get(
-            "stdout",
-            ""
-        )
+        st.success("Execution Successful")
 
         st.code(
-            stdout,
+            result.get("stdout", ""),
             language="text"
         )
 
-        # Metrics
         col1, col2 = st.columns(2)
 
         with col1:
-
             execution_time = result.get(
                 "execution_time_ms",
                 0
@@ -128,7 +77,6 @@ if run:
             )
 
         with col2:
-
             memory = result.get(
                 "memory",
                 "N/A"
@@ -139,55 +87,28 @@ if run:
                 f"{memory} MB"
             )
 
-
-    # ========================================================
-    # COMPILATION ERROR
-    # ========================================================
-
     elif status == "COMPILATION ERROR":
 
-        st.error(
-            "Compilation Error"
-        )
-
-        logs = result.get(
-            "logs",
-            "No logs available"
-        )
+        st.error("Compilation Error")
 
         st.code(
-            logs,
+            result.get(
+                "logs",
+                "No logs available"
+            ),
             language="bash"
         )
 
-
-    # ========================================================
-    # TLE / MLE
-    # ========================================================
-
-    elif status in [
-        "TLE",
-        "MLE",
-    ]:
+    elif status in ["TLE", "MLE"]:
 
         st.error(
             f"Resource Limit Exceeded: {status}"
         )
 
-        output = result.get(
-            "stdout",
-            ""
-        )
-
         st.code(
-            output,
+            result.get("stdout", ""),
             language="text"
         )
-
-
-    # ========================================================
-    # OTHER ERRORS
-    # ========================================================
 
     else:
 

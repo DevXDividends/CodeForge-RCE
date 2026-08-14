@@ -1,7 +1,7 @@
 import docker
 
-from models import CompileResult
-from language import LanguageConfig
+from ..models import CompileResult
+from ..language import LanguageConfig
 
 
 class Compiler:

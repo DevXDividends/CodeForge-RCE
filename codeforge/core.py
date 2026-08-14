@@ -1,15 +1,9 @@
-import os
-
-from models import ExecutionRequest
-
-from workspace_manager import WorkspaceManager
-from container_manager import ContainerManager
-from compiler import Compiler
-from executor import Executor
-from language import (
-    LanguageConfig,
-    LanguageRegistry,
-)
+from .models import ExecutionRequest
+from .workspace_manager import WorkspaceManager
+from .container_manager import ContainerManager
+from .compiler import Compiler
+from .executor import Executor
+from .language import LanguageConfig, LanguageRegistry
 
 
 class CodeForgeRCE:
@@ -17,7 +11,7 @@ class CodeForgeRCE:
     def __init__(
         self,
         image_name: str = "codeforge-rce",
-        workspace_path: str | None = None,
+        base_workspace_path: str | None = None,
         default_timeout: float = 2.0,
         memory_limit: str = "128m",
         pids_limit: int = 64,
@@ -27,62 +21,47 @@ class CodeForgeRCE:
         # WORKSPACE
         # ====================================================
 
-        if workspace_path is None:
-
-            base_dir = os.path.dirname(
-                os.path.abspath(__file__)
-            )
-
-            workspace_path = os.path.join(
-                base_dir,
-                "workspace",
-            )
+        self.workspace = WorkspaceManager(
+            base_workspace_path
+        )
 
         self.workspace_path = (
-            workspace_path
+            self.workspace.workspace_path
         )
 
         # ====================================================
-        # MANAGERS
+        # CONTAINER MANAGER
         # ====================================================
 
-        self.workspace = WorkspaceManager(
-            self.workspace_path
+        self.container_manager = ContainerManager(
+            image_name=image_name,
+            memory_limit=memory_limit,
+            pids_limit=pids_limit,
         )
 
-        self.container_manager = (
-            ContainerManager(
-                image_name=image_name,
-                memory_limit=memory_limit,
-                pids_limit=pids_limit,
-            )
-        )
+        # ====================================================
+        # COMPILER
+        # ====================================================
 
         self.compiler = Compiler(
             self.container_manager.client
         )
 
+        # ====================================================
+        # EXECUTOR
+        # ====================================================
+
         self.executor = Executor(
-            container_manager=(
-                self.container_manager
-            ),
+            container_manager=self.container_manager,
             workspace_manager=self.workspace,
-            default_timeout=(
-                default_timeout
-            ),
+            default_timeout=default_timeout,
         )
 
         # ====================================================
         # LANGUAGE REGISTRY
         # ====================================================
 
-        self.language_registry = (
-            LanguageRegistry()
-        )
-
-        # -------------------------------
-        # C++
-        # -------------------------------
+        self.language_registry = LanguageRegistry()
 
         self.language_registry.register(
             LanguageConfig(
@@ -126,7 +105,6 @@ class CodeForgeRCE:
             # =================================================
 
             try:
-
                 language_config = (
                     self.language_registry.get(
                         request.language
@@ -142,6 +120,16 @@ class CodeForgeRCE:
                 }
 
             # =================================================
+            # ENSURE WORKSPACE EXISTS
+            # =================================================
+
+            self.workspace.ensure_workspace()
+
+            self.workspace_path = (
+                self.workspace.workspace_path
+            )
+
+            # =================================================
             # WRITE SOURCE
             # =================================================
 
@@ -154,10 +142,8 @@ class CodeForgeRCE:
             # CREATE CONTAINER
             # =================================================
 
-            container = (
-                self.container_manager.create(
-                    self.workspace_path
-                )
+            container = self.container_manager.create(
+                self.workspace_path
             )
 
             if container is None:
@@ -175,62 +161,41 @@ class CodeForgeRCE:
             # COMPILE
             # =================================================
 
-            compile_result = (
-                self.compiler.compile(
-                    container,
-                    language_config,
-                )
+            compile_result = self.compiler.compile(
+                container,
+                language_config,
             )
 
             if compile_result.status_code != 0:
 
                 return {
-                    "status": (
-                        compile_result.status
-                    ),
-                    "logs": (
-                        compile_result.logs
-                    ),
-                    "status_code": (
-                        compile_result.status_code
-                    ),
+                    "status": compile_result.status,
+                    "logs": compile_result.logs,
+                    "status_code": compile_result.status_code,
                 }
 
             # =================================================
             # EXECUTE
             # =================================================
 
-            execution_result = (
-                self.executor.run(
-                    container=container,
-                    language_config=(
-                        language_config
-                    ),
-                    timeout=request.timeout,
-                    input_data=request.stdin,
-                )
+            execution_result = self.executor.run(
+                container=container,
+                language_config=language_config,
+                timeout=request.timeout,
+                input_data=request.stdin,
             )
 
-            # Executor already cleaned it.
+            # Executor owns cleanup after execution
             container = None
 
             return {
-                "status": (
-                    execution_result.status
-                ),
-                "stdout": (
-                    execution_result.stdout
-                ),
-                "status_code": (
-                    execution_result.status_code
-                ),
+                "status": execution_result.status,
+                "stdout": execution_result.stdout,
+                "status_code": execution_result.status_code,
                 "execution_time_ms": (
-                    execution_result
-                    .execution_time_ms
+                    execution_result.execution_time_ms
                 ),
-                "memory": (
-                    execution_result.memory_mb
-                ),
+                "memory": execution_result.memory_mb,
             }
 
         finally:
@@ -238,9 +203,6 @@ class CodeForgeRCE:
             # =================================================
             # FALLBACK CLEANUP
             # =================================================
-
-            # Needed when failure occurs before
-            # Executor.run() takes ownership.
 
             if container is not None:
 

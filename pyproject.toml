@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeforge-rce"
+version = "0.1.0"
+description = "A Docker-based isolated code execution engine"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "docker>=7.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["codeforge*"]

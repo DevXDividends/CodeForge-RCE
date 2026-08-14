@@ -3,9 +3,8 @@ import threading
 import time
 
 import docker
-
-from models import ExecutionResult
-from language import LanguageConfig
+from ..models import ExecutionResult
+from ..language import LanguageConfig
 
 
 class Executor:
