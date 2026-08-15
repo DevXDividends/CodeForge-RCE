@@ -6,16 +6,19 @@ class ContainerManager:
     def __init__(
         self,
         image_name: str,
+        docker_client,
         memory_limit: str = "128m",
         pids_limit: int = 64,
     ):
         self.image_name = image_name
         self.memory_limit = memory_limit
         self.pids_limit = pids_limit
-
-        self.client = docker.from_env()
+        self.client = docker_client
 
     def create(self, host_path: str):
+
+        if self.client is None:
+            return None
 
         try:
 
@@ -83,9 +86,11 @@ class ContainerManager:
             return None
 
         try:
+
             return container.stats(
                 stream=False
             )
 
         except docker.errors.DockerException:
+
             return None
